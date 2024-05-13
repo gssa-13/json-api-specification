@@ -1,0 +1,61 @@
+version: '3.9'
+services:
+    app:
+        build:
+            context: ./docker/php/8.1
+            dockerfile: Dockerfile
+            args:
+                USER_ID: $USER_ID
+                GROUP_ID: $GROUP_ID
+        image: laravel/php81:1.9.8
+        networks:
+            - appnet
+        working_dir: /var/www/html
+        volumes:
+            - .:/var/www/html
+        ports:
+            - '${APP_PORT:-80}:80'
+            - '${APP_PORT_SSL:-443}:443'
+        depends_on:
+            - redis
+            - mariadb
+    mariadb:
+        image: mariadb:10.9.2
+        ports:
+            - '${DB_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_HOST: "%"
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        volumes:
+            - dbdata:/var/lib/mysql
+            - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+        networks:
+            - appnet
+        healthcheck:
+            test: [ "CMD", "mysqladmin", "ping", "-p${DB_PASSWORD}" ]
+            retries: 3
+            timeout: 5s
+    redis:
+        image: redis:7.0.4-alpine3.16
+        networks:
+            - appnet
+        volumes:
+            - cachedata:/data
+        ports:
+            - '${REDIS_PORT:-6379}:6379'
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            retries: 3
+            timeout: 5s
+networks:
+    appnet:
+        driver: bridge
+volumes:
+    dbdata:
+        driver: local
+    cachedata:
+        driver: local
